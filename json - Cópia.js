@@ -300,7 +300,7 @@ const json = {
      "minWidth": "256px",
      "titleLocation": "hidden",
      "choicesByUrl": {
-      "url": "https://surveyjs.io/api/CountriesExample"
+      "url": "countr"
      },
      "placeholder": "Country",
      "allowClear": false

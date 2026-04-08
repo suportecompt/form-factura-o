@@ -1,88 +1,141 @@
-// index.js
+/**
+ * LÓGICA PRINCIPAL - INÍCIO DE FATURAÇÃO
+ */
 
-// Security check
-if (!window.supabaseClient) {
-    console.error("Supabase is not initialized. Please check credentials in the HTML file.");
-}
-
+// 1. Inicializar el modelo
 window.survey = new Survey.Model(json);
 window.survey.applyTheme(themeJson);
 
-// Dictionary to store IDs for the final data swap
 window.idDictionary = {
     ticketnr: {},
     id_unidade: {},
     nome_unidade: {}
 };
 
-// Mapping of survey questions to Supabase tables
 const questionTableMapping = {
     "ticketnr": "tickets",
     "id_unidade": "id_unidade",
     "nome_unidade": "nome_unidade"
 };
 
-// Load Technicians on startup (Static Dropdown)
+// Variable para el debounce del buscador (FUERA para que funcione el clearTimeout)
+let lazyLoadTimeout;
+
+// --- 2. VALIDACIÓN DE LOGIN ---
+window.survey.onCurrentPageChanging.add(async (sender, options) => {
+    if (options.oldCurrentPage.name === "step_login" && options.newCurrentPage.name === "planeamento") {
+        
+        // Bloqueamos el avance mientras validamos
+        options.allowChanging = false;
+
+        const email = sender.getValue("login_email");
+        const password = sender.getValue("login_password");
+
+        if (!email || !password) {
+            alert("Por favor, preencha o email e a palavra-passe.");
+            return;
+        }
+
+        try {
+            const response = await fetch(`${CONFIG.SUPABASE_URL}${CONFIG.ENDPOINTS.LOGIN}`, {
+                method: 'POST',
+                headers: {
+                    'apikey': CONFIG.SUPABASE_ANON_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error_description || "Credenciais inválidas.");
+            }
+
+            CONFIG.SESSION_TOKEN = data.access_token;
+            
+            // Cargar técnicos antes de pasar de página
+            await loadTechnicians();
+
+            // Forzar el cambio de página ahora que tenemos el token
+            options.allowChanging = true;
+            sender.nextPage(); 
+
+        } catch (e) {
+            alert("Erro de Autenticação: " + e.message);
+        }
+    }
+});
+
+window.survey.render(document.getElementById("surveyElement"));
+
+// --- 3. CARGAR TÉCNICOS ---
 async function loadTechnicians() {
-    const { data, error } = await window.supabaseClient
-        .from('tecnicos')
-        .select('id, descricao');
-    
-    if (!error && data) {
+    try {
+        const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/tecnicos?select=id,descricao`, {
+            method: 'GET',
+            headers: {
+                'apikey': CONFIG.SUPABASE_ANON_KEY,
+                'Authorization': `${CONFIG.SESSION_TOKEN}`
+            }
+        });
+
+        if (!response.ok) throw new Error("Erro ao carregar técnicos.");
+        
+        const data = await response.json();
         const qTec = window.survey.getQuestionByName("tecnico");
         if (qTec) {
-            // Set choices for the technician dropdown
             qTec.choices = data.map(t => ({ value: t.id, text: t.descricao }));
         }
+    } catch (error) {
+        console.error("Error:", error);
     }
 }
 
-// Handle Lazy Load for the 3 dynamic dropdowns
+// --- 4. BÚSQUEDA DINÁMICA (LAZY LOAD) ---
 window.survey.onChoicesLazyLoad.add((sender, options) => {
     const tableName = questionTableMapping[options.question.name];
     if (!tableName || options.skip > 0) return;
 
     const text = options.filter || "";
-    // Minimum 3 characters to start searching
     if (text.length < 3) { options.setItems([], 0); return; }
 
-    let lazyLoadTimeout;
+    // Limpiar timeout previo para evitar múltiples peticiones
     clearTimeout(lazyLoadTimeout);
 
     lazyLoadTimeout = setTimeout(async () => {
         try {
-            // Determine search column: 'subject' for tickets, 'valor' for units
-            const searchField = (tableName === 'tickets') ? 'subject' : 'valor';
-            
-            const { data, error } = await window.supabaseClient
-                .from(tableName)
-                .select('*')
-                .ilike(searchField, `%${text}%`)
-                .limit(20);
+            const searchField = (tableName === 'tickets') ? 'title' : 'valor';
+            const queryParams = new URLSearchParams({
+                select: '*',
+                [searchField]: `ilike.*${text}*`,
+                limit: CONFIG.UI.DROPDOWN_SEARCH_LIMIT
+            });
 
-            if (error) throw error;
+            const response = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/${tableName}?${queryParams}`, {
+                method: 'GET',
+                headers: {
+                    'apikey': CONFIG.SUPABASE_ANON_KEY,
+                    'Authorization': `${CONFIG.SESSION_TOKEN}`
+                }
+            });
+
+            const data = await response.json();
+
+            // Limpiar diccionario de este campo antes de añadir nuevos
+            window.idDictionary[options.question.name] = {};
 
             const formattedData = data.map(item => {
-                // Capture the internal ID: 'id_propio' for units, 'id' for tickets
-                const realId = item.id_propio || item.id;
-                const realText = item[searchField];
-
-                // Save to dictionary for the final data swap before submission
-                window.idDictionary[options.question.name][realText] = realId;
-
-                return { value: realText, text: realText };
+                const realId = (tableName === 'tickets') ? item.ticket_id : (item.id_propio || item.id);
+                const displayLabel = item[searchField];
+                
+                window.idDictionary[options.question.name][displayLabel] = realId;
+                return { value: displayLabel, text: displayLabel };
             });
 
             options.setItems(formattedData, formattedData.length);
         } catch (e) {
-            console.error("Error during lazy load:", e);
             options.setItems([], 0);
         }
-    }, 250);
-});
-
-// Initialize survey rendering and data loading
-document.addEventListener("DOMContentLoaded", () => {
-    window.survey.render(document.getElementById("surveyElement"));
-    loadTechnicians();
+    }, CONFIG.UI.SEARCH_DELAY_MS);
 });

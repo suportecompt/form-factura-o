@@ -1,12 +1,44 @@
 const json = {
-  // General survey appearance and basic settings
   "title": "Inicio de Faturação - Zonesoft",
   "clearInvisibleValues": "none",
   "logo": "./logo.png",
   "logoWidth": "auto",
   "logoHeight": "60",
-
   "pages": [
+    // --- PÁGINA 0: LOGIN ---
+    {
+      "name": "step_login",
+      "navigationTitle": "Login",
+      "elements": [
+        {
+          "type": "html",
+          "name": "header_login",
+          "html": `
+            <div style="text-align: center;">
+              <h2 style="color: #4b8a2e; margin-bottom: 5px;">Acesso ao Sistema</h2>
+              <p style="color: #666; font-size: 14px;">Introduza as suas credenciais para continuar.</p>
+            </div>
+          `
+        },
+        {
+          "type": "text",
+          "name": "login_email",
+          "title": "Email",
+          "isRequired": true,
+          "inputType": "email",
+          "placeholder": "tecnico@empresa.pt"
+        },
+        {
+          "type": "text",
+          "name": "login_password",
+          "title": "Palavra-passe",
+          "isRequired": true,
+          "inputType": "password",
+          "placeholder": "••••••••"
+        }
+      ]
+    },
+    // --- PÁGINA 1: FORMULARIO ---
     {
       "name": "planeamento",
       "elements": [
@@ -15,7 +47,6 @@ const json = {
           "name": "ticketnr",
           "title": "Ticket/SGPP",
           "isRequired": true,
-          // Enables dynamic data fetching via index.js as the user types
           "choicesLazyLoadEnabled": true,
           "choicesLazyLoadPageSize": 20,
           "placeholder": "Escreva pelo menos 3 caracteres..."
@@ -31,7 +62,6 @@ const json = {
           "name": "id_unidade",
           "title": "POS (@meshcentral)", 
           "isRequired": true,
-          // Enables dynamic data fetching
           "choicesLazyLoadEnabled": true,
           "choicesLazyLoadPageSize": 20,
           "placeholder": "Escreva pelo menos 3 caracteres..."
@@ -41,7 +71,6 @@ const json = {
           "name": "nome_unidade",
           "title": "Unidade name",
           "isRequired": true,
-          // Enables dynamic data fetching
           "choicesLazyLoadEnabled": true,
           "choicesLazyLoadPageSize": 20,
           "placeholder": "Escreva pelo menos 3 caracteres..."
@@ -58,9 +87,7 @@ const json = {
           "title": "Data de inicio",
           "inputType": "date",
           "isRequired": true,
-          // Restricts width so the time field can fit on the same line
-          "width": "50%",
-          "minWidth": "250px"
+          "width": "50%"
         },
         {
           "type": "text",
@@ -68,10 +95,8 @@ const json = {
           "title": "Hora de inicio",
           "inputType": "time",
           "isRequired": true,
-          // Prevents line break to align this field next to the date field
           "startWithNewLine": false,
-          "width": "50%",
-          "minWidth": "150px"
+          "width": "50%"
         },
         {
           "type": "comment",
@@ -82,11 +107,10 @@ const json = {
       ]
     }
   ],
-
-  // Footer controls and form sizing configuration
-  "showPrevButton": false,
+  "showPrevButton": true,
+  "pageNextText": "Continuar",
+  "completeText": "Submeter Dados",
   "questionErrorLocation": "bottom",
-  "completeText": "Submit",
   "widthMode": "static",
   "width": "800"
 };
